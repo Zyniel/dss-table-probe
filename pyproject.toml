@@ -1,0 +1,25 @@
+# Development tooling only: DSS reads plugin.json, not this file, and it is left out of the
+# plugin archive. The plugin runs in the DSS built-in Python environment (3.9 on DSS 13.2).
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+src = ["python-lib", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+# Code style: % formatting, typing.Dict/List/Optional (Python 3.9), plain
+# loops rather than any()/all() or conditional expressions
+ignore = ["UP004", "UP006", "UP007", "UP031", "UP035", "UP045", "SIM108", "SIM110"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tableprobes", "harness"]
+known-third-party = ["dataiku"]
+
+[tool.mypy]
+strict = true
+mypy_path = "python-lib"
+packages = ["tableprobes"]
+
+[[tool.mypy.overrides]]
+module = ["dataiku", "dataiku.*", "pandas", "pandas.*"]
+ignore_missing_imports = true

@@ -1,0 +1,40 @@
+{
+    "meta": {
+        "label": "Table storage (Oracle, PostgreSQL)",
+        "description": "Space the table of the dataset takes in its database, by family of objects: table data, indexes, LOB (TOAST on PostgreSQL) and other. Sizes in MB, storage units, indexes, LOB columns, partitions, tablespaces, compression.",
+        "icon": "icon-hdd"
+    },
+    "handlesDataset": true,
+    "handlesManagedFolder": false,
+    "params": [
+        {
+            "name": "about",
+            "type": "SEPARATOR",
+            "description": "Metrics: total_mb, table_mb, index_mb, lob_mb, other_mb; total_segments and the segments of each family; n_indexes, n_lob_columns, partitioned, n_partitions, n_subpartitions, n_tablespaces, tablespaces, compression (Oracle). Always the whole table, also when computed on one partition of the dataset."
+        },
+        {
+            "name": "reading",
+            "label": "Reading the database",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "read_connection",
+            "label": "Read through connection",
+            "type": "CONNECTION",
+            "mandatory": false,
+            "description": "Optional. Another connection to the same database, e.g. an account with dictionary rights. Empty: the dataset's own connection."
+        },
+        {
+            "name": "oracle_dictionary",
+            "label": "Oracle dictionary",
+            "type": "SELECT",
+            "defaultValue": "auto",
+            "selectChoices": [
+                {"value": "auto", "label": "Automatic: DBA views, else the login user's"},
+                {"value": "dba", "label": "DBA views only (SELECT_CATALOG_ROLE)"},
+                {"value": "user", "label": "Login user's views only (no grant)"}
+            ],
+            "description": "Without SELECT_CATALOG_ROLE, Oracle only shows the sizes of the tables of the login user."
+        }
+    ]
+}
