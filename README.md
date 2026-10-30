@@ -102,7 +102,12 @@ The `other` objects are counted with their table: a tool summing every object of
 
 Dates are DSS date metrics, in UTC. Oracle dictionary dates follow the server's clock: they are converted with its current offset. A metric the database cannot give (statistics never gathered, a column of the other engine) is left out rather than stored empty.
 
-Oracle records changes in memory and writes them to `DBA_TAB_MODIFICATIONS` every few minutes, and each statistics gathering resets them: `dml_since_analyzed` can lag behind the last minutes. PostgreSQL activity counters restart with `pg_stat_reset()` or a crash.
+Right after a load, by the table's own account and without any grant:
+
+- Sizes are exact on both engines.
+- Oracle 21c and later include the changes still held in memory: rows inserted show in `dml_since_analyzed` as soon as they are committed (tested on 21c and 26ai). Older versions may only show them once the database writes them to the dictionary; `DBMS_STATS.FLUSH_DATABASE_MONITORING_INFO` forces it, but needs `ANALYZE ANY`. Each statistics gathering resets these counts.
+- PostgreSQL counts the changes once the writing session is done: at once when it disconnects, within about 10 seconds when it stays connected and idle (tested on 16). The counters restart with `pg_stat_reset()` or after a crash.
+- `row_estimate` and `last_analyzed` describe the last statistics gathering, not the load: a load into an analyzed table shows as `stale_stats = YES` once it changes more than the threshold.
 
 ## Checks
 

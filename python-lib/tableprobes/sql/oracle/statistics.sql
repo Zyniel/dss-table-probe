@@ -7,8 +7,10 @@
 -- row_estimate, avg_row_bytes, last_analyzed  from the optimizer statistics (NUM_ROWS,
 --                  AVG_ROW_LEN, LAST_ANALYZED): NULL before the first gathering
 -- dml_since_analyzed and its split by kind, truncated_since_analyzed, last_dml
---                  DBA_TAB_MODIFICATIONS: flushed from memory every few minutes, and
---                  reset by each statistics gathering
+--                  DBA_TAB_MODIFICATIONS: includes the changes still in memory on 21c and
+--                  later (committed rows show at once); older versions may need
+--                  DBMS_STATS.FLUSH_DATABASE_MONITORING_INFO (ANALYZE ANY). Reset by each
+--                  statistics gathering
 -- created, last_ddl  DBA_OBJECTS
 -- Dates are UTC, ISO 8601: what DSS reads as a date metric. Dictionary dates are in the
 -- time zone of the server's clock (SYSDATE), converted with its current offset.
