@@ -1,6 +1,6 @@
 {
     "id": "dss-table-probe",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "meta": {
         "label": "Table probes (Oracle, PostgreSQL)",
         "description": "Metrics on the table behind an Oracle or PostgreSQL dataset: the space it takes by family of objects (table data, indexes, LOB, other) and its statistics (rows, analysis, changes, activity).",

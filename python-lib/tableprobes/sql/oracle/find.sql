@@ -1,7 +1,8 @@
 -- =============================================================================
 -- find.sql (Oracle)
--- The objects whose owner and name match the dataset's, ignoring case: the probe keeps
--- the exact match first, then follows synonyms (see location.py).
+-- The objects named as the dataset says, or in upper case as Oracle stores unquoted
+-- names: indexed lookups only. find_ignore_case.sql runs when this finds nothing.
+-- The probe keeps the exact match first, then follows synonyms (see location.py).
 -- -----------------------------------------------------------------------------
 -- table_oid       PostgreSQL only, NULL here
 -- kind            TABLE, MATERIALIZED VIEW, VIEW, SYNONYM. A materialized view also has
@@ -23,7 +24,7 @@ FROM   {{objects}} o
        LEFT JOIN {{synonyms}} s ON  o.object_type = 'SYNONYM'
                                 AND s.owner        = o.owner
                                 AND s.synonym_name = o.object_name
-WHERE  (UPPER(o.owner) = UPPER({{schema}}) OR o.owner = {{public_owner}})
-AND    UPPER(o.object_name) = UPPER({{table}})
+WHERE  o.owner IN ({{schema}}, UPPER({{schema}}), {{public_owner}})
+AND    o.object_name IN ({{table}}, UPPER({{table}}))
 AND    o.object_type IN ('TABLE', 'MATERIALIZED VIEW', 'VIEW', 'SYNONYM')
 AND    o.subobject_name IS NULL;

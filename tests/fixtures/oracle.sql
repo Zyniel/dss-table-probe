@@ -34,6 +34,9 @@ CREATE INDEX sales_dsswork.orders_amount_ix ON sales_dsswork.orders (amount) TAB
 CREATE INDEX appx.orders_by_appx_ix ON sales_dsswork.orders (amount, id);
 -- mixed-case name: exact names win over case-insensitive matches
 CREATE TABLE sales_dsswork."Orders" (id NUMBER);
+-- two names equal ignoring case, neither in upper case: ambiguous for LINES
+CREATE TABLE sales_dsswork."Lines" (id NUMBER);
+CREATE TABLE sales_dsswork."lines" (id NUMBER);
 -- composite partitioning: range then list, one partition compressed, local index,
 -- partitioned LOB
 CREATE TABLE sales_dssout.ledger (id NUMBER, d DATE, region VARCHAR2(2), amount NUMBER, note CLOB)

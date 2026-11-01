@@ -63,7 +63,6 @@ SELECT CASE
        CAST(NULL AS bigint)                                             AS updates_since_analyzed,
        CAST(NULL AS bigint)                                             AS deletes_since_analyzed,
        CAST(NULL AS text)                                               AS truncated_since_analyzed,
-       CAST(NULL AS text)                                               AS last_dml,
        CAST(NULL AS text)                                               AS created,
        CAST(NULL AS text)                                               AS last_ddl,
        CAST(NULL AS numeric)                                            AS days_since_ddl,

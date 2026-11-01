@@ -1,7 +1,7 @@
 {
     "meta": {
         "label": "Table storage (Oracle, PostgreSQL)",
-        "description": "Space the table of the dataset takes in its database, by family of objects: table data, indexes, LOB (TOAST on PostgreSQL) and other. Sizes in MB, storage units, indexes, LOB columns, partitions, tablespaces, compression.",
+        "description": "Space the table of the dataset takes in its database, by family of objects: table data, indexes, LOB (TOAST on PostgreSQL) and other; storage units, indexes, LOB columns, partitions, tablespaces, compression.",
         "icon": "icon-hdd"
     },
     "handlesDataset": true,
@@ -10,7 +10,148 @@
         {
             "name": "about",
             "type": "SEPARATOR",
-            "description": "Metrics: total_mb, table_mb, index_mb, lob_mb, other_mb; total_segments and the segments of each family; n_indexes, n_lob_columns, partitioned, n_partitions, n_subpartitions, n_tablespaces, tablespaces, compression (Oracle). Always the whole table, also when computed on one partition of the dataset."
+            "description": "Tick the metrics to compute: only the total size is ticked by default. Always the whole table, also when computed on one partition of the dataset. A metric the database does not have (compression on PostgreSQL) is left out."
+        },
+        {
+            "name": "group_sizes",
+            "label": "Sizes",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "metric_total_mb",
+            "label": "Total size (MB)",
+            "type": "BOOLEAN",
+            "defaultValue": true,
+            "description": "total_mb: all the table's objects: data, indexes, LOB, other"
+        },
+        {
+            "name": "metric_table_mb",
+            "label": "Table data size (MB)",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "table_mb: the table or its partitions"
+        },
+        {
+            "name": "metric_index_mb",
+            "label": "Index size (MB)",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "index_mb: the table's indexes"
+        },
+        {
+            "name": "metric_lob_mb",
+            "label": "LOB size (MB)",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "lob_mb: Oracle LOB segments and their indexes, PostgreSQL TOAST"
+        },
+        {
+            "name": "metric_other_mb",
+            "label": "Other size (MB)",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "other_mb: Oracle cluster, PostgreSQL sequences of the table's columns"
+        },
+        {
+            "name": "group_storage_units",
+            "label": "Storage units",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "metric_total_segments",
+            "label": "Storage units",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "total_segments: Oracle segments, PostgreSQL relations"
+        },
+        {
+            "name": "metric_table_segments",
+            "label": "Table data storage units",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "table_segments: one per partition holding data"
+        },
+        {
+            "name": "metric_index_segments",
+            "label": "Index storage units",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "index_segments"
+        },
+        {
+            "name": "metric_lob_segments",
+            "label": "LOB storage units",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "lob_segments"
+        },
+        {
+            "name": "metric_other_segments",
+            "label": "Other storage units",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "other_segments"
+        },
+        {
+            "name": "group_structure",
+            "label": "Structure",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "metric_n_indexes",
+            "label": "Indexes",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "n_indexes: indexes of the table"
+        },
+        {
+            "name": "metric_n_lob_columns",
+            "label": "LOB columns",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "n_lob_columns: Oracle LOB columns, PostgreSQL columns that can go out of line (text, bytea, jsonb...)"
+        },
+        {
+            "name": "metric_partitioned",
+            "label": "Partitioned",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "partitioned: YES or NO"
+        },
+        {
+            "name": "metric_n_partitions",
+            "label": "Partitions",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "n_partitions"
+        },
+        {
+            "name": "metric_n_subpartitions",
+            "label": "Subpartitions",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "n_subpartitions"
+        },
+        {
+            "name": "metric_n_tablespaces",
+            "label": "Tablespaces",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "n_tablespaces: tablespaces holding the table's objects"
+        },
+        {
+            "name": "metric_tablespaces",
+            "label": "Tablespace names",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "tablespaces: comma separated"
+        },
+        {
+            "name": "metric_compression",
+            "label": "Compression (Oracle)",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "compression: NONE, BASIC, ADVANCED, QUERY LOW/HIGH, ARCHIVE LOW/HIGH (Exadata HCC)..."
         },
         {
             "name": "reading",
@@ -30,9 +171,18 @@
             "type": "SELECT",
             "defaultValue": "auto",
             "selectChoices": [
-                {"value": "auto", "label": "Automatic: DBA views, else the login user's"},
-                {"value": "dba", "label": "DBA views only (SELECT_CATALOG_ROLE)"},
-                {"value": "user", "label": "Login user's views only (no grant)"}
+                {
+                    "value": "auto",
+                    "label": "Automatic: DBA views, else the login user's"
+                },
+                {
+                    "value": "dba",
+                    "label": "DBA views only (SELECT_CATALOG_ROLE)"
+                },
+                {
+                    "value": "user",
+                    "label": "Login user's views only (no grant)"
+                }
             ],
             "description": "Without SELECT_CATALOG_ROLE, Oracle only shows the sizes of the tables of the login user."
         }

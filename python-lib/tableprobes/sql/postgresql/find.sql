@@ -1,7 +1,8 @@
 -- =============================================================================
 -- find.sql (PostgreSQL)
--- The relations whose schema and name match the dataset's, ignoring case: the probe keeps
--- the exact match first (see location.py).
+-- The relations named as the dataset says, or in lower case as PostgreSQL stores unquoted
+-- names: indexed lookups only. find_ignore_case.sql runs when this finds nothing.
+-- The probe keeps the exact match first (see location.py).
 -- -----------------------------------------------------------------------------
 -- table_oid       oid of the relation, used by the other queries
 -- kind            TABLE, PARTITIONED TABLE, MATERIALIZED VIEW, FOREIGN TABLE, VIEW
@@ -24,6 +25,6 @@ SELECT c.oid                                                            AS table
        CAST(NULL AS text)                                               AS target_db_link
 FROM   pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE  lower(n.nspname) = lower({{schema}})
-AND    lower(c.relname) = lower({{table}})
+WHERE  n.nspname IN ({{schema}}, lower({{schema}}))
+AND    c.relname IN ({{table}}, lower({{table}}))
 AND    c.relkind IN ('r', 'p', 'm', 'f', 'v');

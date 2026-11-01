@@ -14,7 +14,7 @@ harness.install_fake_dataiku()
 
 import dataiku  # noqa: E402  (the stand-in)
 
-from tableprobes import database  # noqa: E402
+from tableprobes import catalog, database  # noqa: E402
 
 PROBES = os.path.join(harness.REPO, "python-probes")
 ISO_UTC = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.000Z$")
@@ -23,18 +23,44 @@ STORAGE_SIZES = ("total_mb", "table_mb", "index_mb", "lob_mb", "other_mb")
 STORAGE_SEGMENTS = ("total_segments", "table_segments", "index_segments", "lob_segments", "other_segments")
 
 
-def probe(name, dataset, config=None):
+def ticked(groups):
+    """A config with every metric of a probe ticked."""
+    config = {}
+    for metric in catalog.all_metrics(groups):
+        config["metric_" + metric.name] = True
+    return config
+
+
+ALL_STORAGE = ticked(catalog.STORAGE_GROUPS)
+ALL_STATISTICS = ticked(catalog.STATISTICS_GROUPS)
+
+
+def probe(name, dataset, config):
     """Run python-probes/<name>/probe.py as DSS does: config as a global, process()."""
-    namespace = runpy.run_path(os.path.join(PROBES, name, "probe.py"), init_globals={"config": config or {}})
+    namespace = runpy.run_path(os.path.join(PROBES, name, "probe.py"), init_globals={"config": config})
     return namespace["process"](dataset, "ALL")
 
 
 def storage(connection, schema, table, config=None):
-    return probe("table-storage", FakeDataset(connection, schema, table), config)
+    """The storage probe with every metric ticked, and the settings of config."""
+    return probe("table-storage", FakeDataset(connection, schema, table), dict(ALL_STORAGE, **(config or {})))
 
 
 def statistics(connection, schema, table, config=None):
-    return probe("table-statistics", FakeDataset(connection, schema, table), config)
+    """The statistics probe with every metric ticked, and the settings of config."""
+    return probe("table-statistics", FakeDataset(connection, schema, table),
+                 dict(ALL_STATISTICS, **(config or {})))
+
+
+def queries_since(start):
+    """Names of the SQL files run since harness.QUERIES had start entries, from the session
+    tag each query runs after."""
+    names = []
+    for _connection, _sql, pre_queries in harness.QUERIES[start:]:
+        tag = re.search(r"action_name => '(\w+)'|dss table probe (\w+)", " ".join(pre_queries or []))
+        if tag:
+            names.append(tag.group(1) or tag.group(2))
+    return names
 
 
 def error_of(function, *arguments):
@@ -76,6 +102,16 @@ check("pg: the exact name wins over a match ignoring case", lower_case["total_mb
 check("pg: a dataset without schema finds the table through the search_path",
       storage("PG_APP", None, "SALES_orders") == orders)
 check("pg: schema written in another case", storage("PG_APP", "SALES_DSSWORK", "SALES_orders") == orders)
+start = len(harness.QUERIES)
+storage("PG_APP", "sales_dsswork", "SALES_orders")
+check("pg: exact names are found without the case-insensitive lookup",
+      "find_ignore_case" not in queries_since(start), queries_since(start))
+start = len(harness.QUERIES)
+check("pg: a name written in another case, found ignoring case",
+      storage("PG_OTHER", "sales_dsswork", "Sales_Orders")["table_segments"] == 1
+      and "find_ignore_case" in queries_since(start))
+check("pg: two names equal ignoring case, none as written nor in lower case, are refused",
+      "several objects" in error_of(storage, "PG_APP", "sales_dsswork", "lINES"))
 
 ledger = storage("PG_APP", "fin_dssout", "ledger")
 check("pg storage: partitioned table, 2 partitions, 2 subpartitions",
@@ -142,8 +178,15 @@ check("ora: pg and Oracle give the same storage metrics", set(ora_orders) == set
 
 check("ora: an exact mixed-case name", storage("ORA_ADMIN", "SALES_DSSWORK", "Orders")["total_mb"]
       < ora_orders["total_mb"])
-check("ora: a name matching two tables ignoring case is refused",
-      "several objects" in error_of(storage, "ORA_ADMIN", "SALES_DSSWORK", "orders"))
+check("ora: a name written in lower case is the upper-case table, as Oracle reads unquoted names",
+      storage("ORA_ADMIN", "sales_dsswork", "orders") == ora_orders)
+check("ora: two names equal ignoring case, none as written nor in upper case, are refused",
+      "several objects" in error_of(storage, "ORA_ADMIN", "SALES_DSSWORK", "LINES"))
+start = len(harness.QUERIES)
+storage("ORA_ADMIN", "SALES_DSSWORK", "ORDERS")
+check("ora: the storage reads data_tables, dependents, segments, table; no case-insensitive lookup",
+      [name for name in queries_since(start) if name not in ("session", "find")]
+      == ["data_tables", "dependents", "segments", "table"], queries_since(start))
 check("ora: a private synonym is followed", storage("ORA_ADMIN", "APPX", "ORDERS_SYN") == ora_orders)
 check("ora: a public synonym, for a dataset without schema", storage("ORA_ADMIN", None, "ORDERS_PUB") == ora_orders)
 check("ora: a view has no storage", "is a VIEW" in error_of(storage, "ORA_ADMIN", "APPX", "V_ORDERS"))
@@ -164,9 +207,9 @@ cust = storage("ORA_ADMIN", "APPX", "CUST")
 check("ora storage: a clustered table: the cluster and its index are OTHER",
       cust["other_segments"] == 2 and cust["other_mb"] > 0 and cust["table_segments"] == 0, cust)
 empty_t = storage("ORA_ADMIN", "SALES_DSSOUT", "EMPTY_T")
-check("ora storage: a table without segment: 0 MB, no tablespace",
+check("ora storage: a table without segment: 0 MB, no tablespace, its compression setting",
       empty_t["total_mb"] == 0 and empty_t["total_segments"] == 0 and "tablespaces" not in empty_t
-      and empty_t["n_tablespaces"] == 0, empty_t)
+      and empty_t["n_tablespaces"] == 0 and empty_t["compression"] == "NONE", empty_t)
 check("ora storage: the restored table keeps its BIN$ index",
       storage("ORA_ADMIN", "SALES_DSSWORK", "T_RESTORE")["n_indexes"] == 1)
 check("ora storage: a materialized view", storage("ORA_ADMIN", "SALES_DSSOUT", "MV_TOTALS")["table_segments"] == 1)
@@ -189,7 +232,7 @@ check("ora statistics: 300 updates and 100 deletes since the analysis",
 check("ora statistics: 40 % changed: stale", ora_stats["dml_pct_since_analyzed"] == 40.0
       and ora_stats["stale_stats"] == "YES", ora_stats)
 check("ora statistics: dates are DSS dates, UTC", all(ISO_UTC.match(ora_stats[name][0]) is not None
-      for name in ("last_analyzed", "created", "last_ddl", "last_dml")), ora_stats)
+      for name in ("last_analyzed", "created", "last_ddl")), ora_stats)
 check("ora statistics: no PostgreSQL-only metric", not any(name in ora_stats for name in
       ("live_rows", "dead_rows", "last_vacuum", "seq_scans", "dead_rows_pct")), ora_stats)
 check("ora statistics: read without grant through the ALL_ views",
@@ -203,6 +246,32 @@ for table in ("LEDGER", "IOT_T", "MV_TOTALS"):
 kinds["CUST"] = statistics("ORA_ADMIN", "APPX", "CUST")["table_kind"]
 check("ora statistics: table kinds", kinds == {"LEDGER": "PARTITIONED", "IOT_T": "INDEX ORGANIZED",
                                                "MV_TOTALS": "MATERIALIZED VIEW", "CUST": "CLUSTERED"}, kinds)
+
+# =========================================================================================
+# Metric checkboxes
+# =========================================================================================
+for engine, connection, schema, table in (("pg", "PG_APP", "fin_dssout", "ledger"),
+                                          ("ora", "ORA_ADMIN", "SALES_DSSOUT", "LEDGER")):
+    dataset = FakeDataset(connection, schema, table)
+    start = len(harness.QUERIES)
+    default = probe("table-storage", dataset, {})
+    run = queries_since(start)
+    check("%s checkboxes: by default the total size only" % engine, list(default) == ["total_mb"], default)
+    check("%s checkboxes: the total size does not read table.sql" % engine, "table" not in run, run)
+    start = len(harness.QUERIES)
+    structure = probe("table-storage", dataset, {"metric_total_mb": False, "metric_partitioned": True,
+                                                 "metric_n_partitions": True})
+    run = queries_since(start)
+    check("%s checkboxes: the partitioning only, without reading the storage" % engine,
+          structure == {"partitioned": "YES", "n_partitions": 2}
+          and not any(name in run for name in ("storage", "data_tables", "dependents", "segments")), (structure, run))
+    check("%s checkboxes: nothing ticked in the statistics probe by default" % engine,
+          "No metric is ticked" in error_of(probe, "table-statistics", dataset, {}))
+    check("%s checkboxes: nothing ticked at all" % engine,
+          "No metric is ticked" in error_of(probe, "table-storage", dataset, {"metric_total_mb": False}))
+    picked = probe("table-statistics", dataset, {"metric_table_kind": True, "metric_row_estimate": True})
+    check("%s checkboxes: the statistics ticked only" % engine,
+          sorted(picked) == ["row_estimate", "table_kind"], picked)
 
 # =========================================================================================
 # Both engines
@@ -229,9 +298,9 @@ for engine, connection in (("postgresql", "PG_APP"), ("oracle", "ORA_ADMIN")):
     else:
         values = {"owner": "'SALES_DSSWORK'", "table": "'ORDERS'", "schema": "'SALES_DSSWORK'",
                   "public_owner": "NULL", "quoted_table": "'\"ORDERS\"'"}
-    for name in ("session", "find", "storage", "table", "statistics"):
+    for name in ("session", "find", "find_ignore_case", "table", "statistics"):
         column_lists[(engine, name)] = list(located_db.query(name, values).columns)
-for name in ("session", "find", "storage", "table", "statistics"):
+for name in ("session", "find", "find_ignore_case", "table", "statistics"):
     check("%s.sql: same columns on both engines, same order" % name,
           column_lists[("postgresql", name)] == column_lists[("oracle", name)],
           (column_lists[("postgresql", name)], column_lists[("oracle", name)]))

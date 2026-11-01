@@ -20,6 +20,9 @@ FROM   generate_series(1, 3000) g;
 CREATE INDEX "SALES_orders_amount" ON sales_dsswork."SALES_orders"(amount) TABLESPACE sales_dsswork_index;
 -- same name in lower case: exact names win over case-insensitive matches
 CREATE TABLE sales_dsswork.sales_orders (id int);
+-- two names equal ignoring case, neither in lower case: ambiguous for lines
+CREATE TABLE sales_dsswork."Lines" (id int);
+CREATE TABLE sales_dsswork."LINES" (id int);
 -- identity column, no out-of-line column
 CREATE TABLE appx.events (id bigint GENERATED ALWAYS AS IDENTITY, at timestamp, n int);
 INSERT INTO appx.events (at, n) SELECT now(), g FROM generate_series(1, 2000) g;

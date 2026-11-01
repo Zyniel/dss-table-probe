@@ -1,16 +1,17 @@
 """The "Table statistics" probe: optimizer statistics, lifecycle and activity of the
 dataset's table.
 
+The metrics are listed in catalog.py; only the ticked ones are returned. All of them come
+from one query, statistics.sql.
 Metrics of both engines:
   table_kind, row_estimate, avg_row_bytes, last_analyzed (date), days_since_analyzed,
-  dml_since_analyzed, dml_pct_since_analyzed, stale_stats
+  dml_since_analyzed, dml_pct_since_analyzed, stale_stats, logging
 Oracle only:
   inserts_since_analyzed, updates_since_analyzed, deletes_since_analyzed,
-  truncated_since_analyzed, last_dml (date), created (date), last_ddl (date),
-  days_since_ddl, logging, parallel_degree
+  truncated_since_analyzed, created (date), last_ddl (date), days_since_ddl, parallel_degree
 PostgreSQL only:
-  logging (NO for an unlogged table), live_rows, dead_rows, dead_rows_pct,
-  last_vacuum (date), days_since_vacuum, seq_scans, index_scans
+  live_rows, dead_rows, dead_rows_pct, last_vacuum (date), days_since_vacuum, seq_scans,
+  index_scans
 
 stale_stats is YES when the statistics were never gathered, when the table was truncated
 since (Oracle), or when the rows changed since reach the threshold of the probe settings
@@ -19,8 +20,9 @@ left out rather than stored empty.
 """
 from typing import Any, Dict, Optional
 
+from tableprobes import catalog
 from tableprobes.location import locate, table_placeholders
-from tableprobes.metrics import as_date, as_float, as_int, as_text, without_missing
+from tableprobes.metrics import as_date, as_float, as_int, as_text, keep_ticked, without_missing
 from tableprobes.settings import read_settings
 
 # Kinds of table with statistics
@@ -32,12 +34,14 @@ INTEGER_COLUMNS = ("row_estimate", "avg_row_bytes", "dml_since_analyzed", "inser
                    "updates_since_analyzed", "deletes_since_analyzed", "live_rows", "dead_rows",
                    "seq_scans", "index_scans")
 DECIMAL_COLUMNS = ("days_since_analyzed", "days_since_ddl", "days_since_vacuum")
-DATE_COLUMNS = ("last_analyzed", "last_dml", "created", "last_ddl", "last_vacuum")
+DATE_COLUMNS = ("last_analyzed", "created", "last_ddl", "last_vacuum")
 
 
 def compute(dataset: Any, config: Dict[str, Any]) -> Dict[str, Any]:
-    """Statistics metrics of the dataset's table. config: the probe settings given by DSS."""
+    """The ticked statistics metrics of the dataset's table. config: the probe settings
+    given by DSS."""
     settings = read_settings(config)
+    ticked = catalog.ticked_metrics(config, catalog.STATISTICS_GROUPS)
     located = locate(dataset, settings)
 
     table = located.table
@@ -49,7 +53,7 @@ def compute(dataset: Any, config: Dict[str, Any]) -> Dict[str, Any]:
         raise LookupError("Table %s disappeared while the probe was reading it" % table.full_name())
 
     metrics = statistics_metrics(rows.iloc[0].to_dict(), settings.stale_pct)
-    return without_missing(metrics)
+    return without_missing(keep_ticked(metrics, ticked))
 
 
 def statistics_metrics(row: Dict[str, Any], stale_pct: float) -> Dict[str, Any]:

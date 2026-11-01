@@ -18,7 +18,6 @@
 -- n_segments      relations with storage summed in the row. An index of a partitioned
 --                 table has no storage of its own: 0 when the table has no partition
 -- size_bytes      all forks: main, free space map, visibility map, init
--- compression     Oracle only, NULL
 -- Placeholders: {{table_oid}}
 -- =============================================================================
 WITH
@@ -86,8 +85,7 @@ SELECT r.family,
        COUNT(*) FILTER (WHERE r.has_storage)                            AS n_segments,
        SUM(pg_relation_size(r.oid, 'main') + pg_relation_size(r.oid, 'fsm')
            + pg_relation_size(r.oid, 'vm') + pg_relation_size(r.oid, 'init'))
-                                                                        AS size_bytes,
-       CAST(NULL AS text)                                               AS compression
+                                                                        AS size_bytes
 FROM   rel r
        CROSS JOIN db
        JOIN pg_class o       ON o.oid = r.object_oid

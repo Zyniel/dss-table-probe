@@ -16,7 +16,7 @@ ENGINES = ("oracle", "postgresql")
 SQL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sql")
 
 # Run before each query, so that DBAs recognise the sessions:
-# - Oracle: module DSS_TABLE_PROBE, action = the query (V$SESSION)
+# - Oracle: module DSS_TABLE_PROBE, action = the query (GV$SESSION)
 # - PostgreSQL: application_name "dss table probe <query>" (pg_stat_activity)
 SESSION_TAG = {
     "oracle": "BEGIN DBMS_APPLICATION_INFO.SET_MODULE(module_name => 'DSS_TABLE_PROBE', "

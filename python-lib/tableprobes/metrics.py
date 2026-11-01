@@ -4,7 +4,7 @@ A value read from the database can be missing (NULL, read as None or NaN): the f
 return None then, and without_missing() drops those metrics, so a probe never stores an
 empty value (a column of the other engine, statistics never gathered...).
 """
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from dataiku.metric import MetricDataTypes
@@ -57,5 +57,14 @@ def without_missing(metrics: Dict[str, Any]) -> Dict[str, Any]:
     kept = {}
     for name in metrics:
         if metrics[name] is not None:
+            kept[name] = metrics[name]
+    return kept
+
+
+def keep_ticked(metrics: Dict[str, Any], ticked: List[str]) -> Dict[str, Any]:
+    """The ticked metrics only."""
+    kept = {}
+    for name in ticked:
+        if name in metrics:
             kept[name] = metrics[name]
     return kept

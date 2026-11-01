@@ -5,8 +5,9 @@
    database it reaches.
 3. The connection that reads the dictionary (the dataset's, or the one chosen in the probe
    settings) must reach the same database.
-4. The database gives the table as it knows it: exact names first, then ignoring case.
-   Oracle synonyms are followed to their table.
+4. The database gives the table as it knows it: names as written, or as the database
+   stores unquoted names (upper case on Oracle, lower case on PostgreSQL); ignoring case
+   only when neither exists. Oracle synonyms are followed to their table.
 """
 import logging
 from dataclasses import dataclass
@@ -164,9 +165,13 @@ def find_table(database: Database, schema: str, table: str, look_in_public: bool
         public_owner = "NULL"
         if look_in_public:
             public_owner = sql_literal("PUBLIC")
-        candidates = database.query("find", {"schema": sql_literal(schema),
-                                             "table": sql_literal(table),
-                                             "public_owner": public_owner})
+        values = {"schema": sql_literal(schema), "table": sql_literal(table), "public_owner": public_owner}
+
+        # Names as written or as the database stores unquoted names: indexed lookups.
+        # Ignoring case reads every object of the schema: only when nothing matched.
+        candidates = database.query("find", values)
+        if len(candidates) == 0:
+            candidates = database.query("find_ignore_case", values)
 
         matches = best_matches(candidates.to_dict("records"), schema, table)
         if not matches:

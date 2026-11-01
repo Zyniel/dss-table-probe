@@ -4,16 +4,16 @@ Run against two local test databases in Docker. No DSS is needed: `harness.py` s
 
 ```
 python tests/setup_containers.py   # start the containers, load the test data (safe to run again)
-python tests/test_units.py         # no database: settings, name matching, staleness, values, SQL files
-python tests/test_probes.py        # both probes, run as DSS runs probe.py, on both engines
+python tests/test_units.py         # no database: settings, checkboxes, name matching, staleness, values, SQL files
+python tests/test_probes.py        # both probes, run as DSS runs probe.py, on both engines; queries run per checkbox
 ```
 
 Each test prints one line per check (`ok` or `FAIL`) and exits with 1 when a check fails.
 
 | Container | Image | Test data |
 |---|---|---|
-| `probes-pg` | `postgres:16-alpine` | [fixtures/postgresql.sql](fixtures/postgresql.sql): TOAST, a serial and an identity column, an index in another tablespace, partitions on two levels, a partitioned table without partition, a materialized view, a view, an unlogged table, two names differing by case, a second database |
-| `probes-ora` | `gvenzl/oracle-free:latest` | [fixtures/oracle.sql](fixtures/oracle.sql): a LOB, an index of another schema, composite partitioning with a compressed partition and a partitioned LOB, an IOT with overflow, a nested table, a clustered table, a materialized view, a temporary table, a table without segment, a table restored from the recycle bin, a view, private and public synonyms, two names differing by case |
+| `probes-pg` | `postgres:16-alpine` | [fixtures/postgresql.sql](fixtures/postgresql.sql): TOAST, a serial and an identity column, an index in another tablespace, partitions on two levels, a partitioned table without partition, a materialized view, a view, an unlogged table, names differing by case (one exact and one lower case; two mixed case), a second database |
+| `probes-ora` | `gvenzl/oracle-free:latest` | [fixtures/oracle.sql](fixtures/oracle.sql): a LOB, an index of another schema, composite partitioning with a compressed partition and a partitioned LOB, an IOT with overflow, a nested table, a clustered table, a materialized view, a temporary table, a table without segment, a table restored from the recycle bin, a view, private and public synonyms, names differing by case (one exact and one upper case; two mixed case) |
 
 Other images (a registry mirror): `PROBES_PG_IMAGE`, `PROBES_ORA_IMAGE`. Other container names: `PROBES_PG_CONTAINER`, `PROBES_ORA_CONTAINER`.
 

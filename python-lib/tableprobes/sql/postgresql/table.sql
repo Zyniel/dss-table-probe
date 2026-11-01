@@ -8,6 +8,7 @@
 -- n_lob_columns    columns whose values can be stored out of line in TOAST (storage
 --                  EXTENDED or EXTERNAL: text, varchar, bytea, jsonb...), the counterpart
 --                  of Oracle LOB columns
+-- compression      Oracle only, NULL
 -- Placeholders: {{table_oid}}
 -- =============================================================================
 SELECT CASE WHEN c.relkind = 'p' THEN 'YES' ELSE 'NO' END                AS partitioned,
@@ -22,6 +23,7 @@ SELECT CASE WHEN c.relkind = 'p' THEN 'YES' ELSE 'NO' END                AS part
         WHERE  a.attrelid = c.oid
         AND    a.attnum > 0
         AND    NOT a.attisdropped
-        AND    a.attstorage IN ('x', 'e'))                              AS n_lob_columns
+        AND    a.attstorage IN ('x', 'e'))                              AS n_lob_columns,
+       CAST(NULL AS text)                                               AS compression
 FROM   pg_class c
 WHERE  c.oid = {{table_oid}};

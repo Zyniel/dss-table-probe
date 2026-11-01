@@ -3,12 +3,16 @@
 -- Optimizer statistics, lifecycle and changes of one table. One row.
 -- Same columns as the PostgreSQL file, in the same order: a column that does not exist
 -- on Oracle is NULL, and the probe returns no metric for it.
+-- Every dictionary view is filtered on the owner and name of the table, as literals.
 -- -----------------------------------------------------------------------------
--- row_estimate, avg_row_bytes, last_analyzed  from the optimizer statistics (NUM_ROWS,
---                  AVG_ROW_LEN, LAST_ANALYZED): NULL before the first gathering
--- dml_since_analyzed and its split by kind, truncated_since_analyzed, last_dml
---                  DBA_TAB_MODIFICATIONS: includes the changes still in memory on 21c and
---                  later (committed rows show at once); older versions may need
+-- row_estimate, avg_row_bytes, last_analyzed  from DBA_TABLES (NUM_ROWS, AVG_ROW_LEN,
+--                  LAST_ANALYZED): NULL before the first gathering. DBA_TAB_STATISTICS is
+--                  not read: on Exadata it holds a second row per table with real-time
+--                  statistics
+-- dml_since_analyzed and its split by kind, truncated_since_analyzed
+--                  DBA_TAB_MODIFICATIONS, table level. On 21c and later it adds the
+--                  changes still in memory on every instance of a RAC (GV$DML_STATS):
+--                  committed rows show at once. Older versions may need
 --                  DBMS_STATS.FLUSH_DATABASE_MONITORING_INFO (ANALYZE ANY). Reset by each
 --                  statistics gathering
 -- created, last_ddl  DBA_OBJECTS
@@ -20,37 +24,41 @@
 -- =============================================================================
 WITH
 clock AS (
-  SELECT TO_CHAR(SYSTIMESTAMP, 'TZH:TZM') AS server_offset
+  SELECT TO_CHAR(SYSTIMESTAMP, 'TZH:TZM')                               AS server_offset
   FROM   dual
 ),
--- ISO 8601 UTC text of the dictionary dates
-dates AS (
-  SELECT t.owner, t.table_name,
-         TO_CHAR(SYS_EXTRACT_UTC(FROM_TZ(CAST(t.last_analyzed AS TIMESTAMP), k.server_offset)),
-                 'YYYY-MM-DD"T"HH24:MI:SS".000Z"')                     AS last_analyzed,
-         TO_CHAR(SYS_EXTRACT_UTC(FROM_TZ(CAST(o.created AS TIMESTAMP), k.server_offset)),
-                 'YYYY-MM-DD"T"HH24:MI:SS".000Z"')                     AS created,
-         TO_CHAR(SYS_EXTRACT_UTC(FROM_TZ(CAST(o.last_ddl_time AS TIMESTAMP), k.server_offset)),
-                 'YYYY-MM-DD"T"HH24:MI:SS".000Z"')                     AS last_ddl,
-         TO_CHAR(SYS_EXTRACT_UTC(FROM_TZ(CAST(m.timestamp AS TIMESTAMP), k.server_offset)),
-                 'YYYY-MM-DD"T"HH24:MI:SS".000Z"')                     AS last_dml
-  FROM   {{tables}} t
-         CROSS JOIN clock k
-         LEFT JOIN {{objects}} o ON  o.owner          = t.owner
-                                 AND o.object_name    = t.table_name
-                                 AND o.object_type    = 'TABLE'
-                                 AND o.subobject_name IS NULL
-         LEFT JOIN {{tab_modifications}} m ON  m.table_owner = t.owner
-                                           AND m.table_name  = t.table_name
-                                           AND m.partition_name    IS NULL
-                                           AND m.subpartition_name IS NULL
-  WHERE  t.owner      = {{owner}}
-  AND    t.table_name = {{table}}
+table_object AS (
+  SELECT o.created, o.last_ddl_time
+  FROM   {{objects}} o
+  WHERE  o.owner          = {{owner}}
+  AND    o.object_name    = {{table}}
+  AND    o.object_type    = 'TABLE'
+  AND    o.subobject_name IS NULL
+),
+changes AS (
+  SELECT m.inserts, m.updates, m.deletes, m.truncated
+  FROM   {{tab_modifications}} m
+  WHERE  m.table_owner       = {{owner}}
+  AND    m.table_name        = {{table}}
+  AND    m.partition_name    IS NULL
+  AND    m.subpartition_name IS NULL
+),
+kinds AS (
+  SELECT (SELECT COUNT(*)
+          FROM   {{objects}} mv
+          WHERE  mv.owner       = {{owner}}
+          AND    mv.object_name = {{table}}
+          AND    mv.object_type = 'MATERIALIZED VIEW')                  AS is_mview,
+         (SELECT COUNT(*)
+          FROM   {{external_tables}} x
+          WHERE  x.owner      = {{owner}}
+          AND    x.table_name = {{table}})                              AS is_external
+  FROM   dual
 )
 SELECT CASE
          WHEN t.temporary = 'Y'          THEN 'TEMPORARY'
-         WHEN x.table_name IS NOT NULL   THEN 'EXTERNAL'
-         WHEN mv.object_name IS NOT NULL THEN 'MATERIALIZED VIEW'
+         WHEN k.is_external > 0          THEN 'EXTERNAL'
+         WHEN k.is_mview > 0             THEN 'MATERIALIZED VIEW'
          WHEN t.iot_type = 'IOT'         THEN 'INDEX ORGANIZED'
          WHEN t.cluster_name IS NOT NULL THEN 'CLUSTERED'
          WHEN t.partitioned = 'YES'      THEN 'PARTITIONED'
@@ -58,16 +66,18 @@ SELECT CASE
        END                                                              AS table_kind,
        t.num_rows                                                       AS row_estimate,
        t.avg_row_len                                                    AS avg_row_bytes,
-       d.last_analyzed,
+       TO_CHAR(SYS_EXTRACT_UTC(FROM_TZ(CAST(t.last_analyzed AS TIMESTAMP), c.server_offset)),
+               'YYYY-MM-DD"T"HH24:MI:SS".000Z"')                       AS last_analyzed,
        ROUND(SYSDATE - t.last_analyzed, 3)                              AS days_since_analyzed,
        NVL(m.inserts, 0) + NVL(m.updates, 0) + NVL(m.deletes, 0)        AS dml_since_analyzed,
        NVL(m.inserts, 0)                                                AS inserts_since_analyzed,
        NVL(m.updates, 0)                                                AS updates_since_analyzed,
        NVL(m.deletes, 0)                                                AS deletes_since_analyzed,
        NVL(m.truncated, 'NO')                                           AS truncated_since_analyzed,
-       d.last_dml,
-       d.created,
-       d.last_ddl,
+       TO_CHAR(SYS_EXTRACT_UTC(FROM_TZ(CAST(o.created AS TIMESTAMP), c.server_offset)),
+               'YYYY-MM-DD"T"HH24:MI:SS".000Z"')                       AS created,
+       TO_CHAR(SYS_EXTRACT_UTC(FROM_TZ(CAST(o.last_ddl_time AS TIMESTAMP), c.server_offset)),
+               'YYYY-MM-DD"T"HH24:MI:SS".000Z"')                       AS last_ddl,
        ROUND(SYSDATE - o.last_ddl_time, 3)                              AS days_since_ddl,
        t.logging,
        TRIM(t.degree)                                                   AS parallel_degree,
@@ -78,20 +88,9 @@ SELECT CASE
        CAST(NULL AS NUMBER)                                             AS seq_scans,
        CAST(NULL AS NUMBER)                                             AS index_scans
 FROM   {{tables}} t
-       JOIN dates d ON  d.owner      = t.owner
-                    AND d.table_name = t.table_name
-       LEFT JOIN {{objects}} o ON  o.owner          = t.owner
-                               AND o.object_name    = t.table_name
-                               AND o.object_type    = 'TABLE'
-                               AND o.subobject_name IS NULL
-       LEFT JOIN {{objects}} mv ON  mv.owner       = t.owner
-                                AND mv.object_name = t.table_name
-                                AND mv.object_type = 'MATERIALIZED VIEW'
-       LEFT JOIN {{external_tables}} x ON  x.owner      = t.owner
-                                       AND x.table_name = t.table_name
-       LEFT JOIN {{tab_modifications}} m ON  m.table_owner = t.owner
-                                         AND m.table_name  = t.table_name
-                                         AND m.partition_name    IS NULL
-                                         AND m.subpartition_name IS NULL
+       CROSS JOIN clock c
+       CROSS JOIN kinds k
+       LEFT JOIN table_object o ON 1 = 1
+       LEFT JOIN changes m      ON 1 = 1
 WHERE  t.owner      = {{owner}}
 AND    t.table_name = {{table}};

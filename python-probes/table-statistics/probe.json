@@ -1,7 +1,7 @@
 {
     "meta": {
         "label": "Table statistics (Oracle, PostgreSQL)",
-        "description": "Optimizer statistics, lifecycle and activity of the table of the dataset: estimated rows, last analysis, rows changed since and stale statistics; Oracle creation, last DDL and DML; PostgreSQL live and dead rows, last vacuum, scans.",
+        "description": "Optimizer statistics, lifecycle and activity of the table of the dataset: estimated rows, last analysis, rows changed since and stale statistics; Oracle creation and last DDL; PostgreSQL live and dead rows, last vacuum, scans.",
         "icon": "icon-bar-chart"
     },
     "handlesDataset": true,
@@ -10,7 +10,68 @@
         {
             "name": "about",
             "type": "SEPARATOR",
-            "description": "Metrics: table_kind, row_estimate, avg_row_bytes, last_analyzed, days_since_analyzed, dml_since_analyzed, dml_pct_since_analyzed, stale_stats; Oracle: inserts/updates/deletes_since_analyzed, truncated_since_analyzed, last_dml, created, last_ddl, days_since_ddl, logging, parallel_degree; PostgreSQL: logging, live_rows, dead_rows, dead_rows_pct, last_vacuum, days_since_vacuum, seq_scans, index_scans."
+            "description": "Tick the metrics to compute: none is ticked by default. All of them are read in one query. A metric the database does not have is left out."
+        },
+        {
+            "name": "group_statistics",
+            "label": "Statistics",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "metric_table_kind",
+            "label": "Table kind",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "table_kind: HEAP, PARTITIONED, INDEX ORGANIZED, TEMPORARY..."
+        },
+        {
+            "name": "metric_row_estimate",
+            "label": "Rows at the last analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "row_estimate: from the optimizer statistics"
+        },
+        {
+            "name": "metric_avg_row_bytes",
+            "label": "Average row length (bytes)",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "avg_row_bytes"
+        },
+        {
+            "name": "metric_last_analyzed",
+            "label": "Last analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "last_analyzed: date of the last statistics gathering"
+        },
+        {
+            "name": "metric_days_since_analyzed",
+            "label": "Days since the last analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "days_since_analyzed"
+        },
+        {
+            "name": "metric_dml_since_analyzed",
+            "label": "Rows changed since the analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "dml_since_analyzed: inserted, updated, deleted"
+        },
+        {
+            "name": "metric_dml_pct_since_analyzed",
+            "label": "% of rows changed since the analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "dml_pct_since_analyzed"
+        },
+        {
+            "name": "metric_stale_stats",
+            "label": "Stale statistics",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "stale_stats: YES or NO, from the threshold below"
         },
         {
             "name": "stale_pct",
@@ -18,7 +79,130 @@
             "type": "DOUBLE",
             "defaultValue": 10,
             "mandatory": true,
+            "visibilityCondition": "model.metric_stale_stats",
             "description": "stale_stats is YES when the rows changed since the last analysis reach this % of the rows (10: Oracle's default)."
+        },
+        {
+            "name": "metric_logging",
+            "label": "Logging",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "logging: YES or NO (PostgreSQL: NO for an unlogged table)"
+        },
+        {
+            "name": "group_oracle_only",
+            "label": "Oracle only",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "metric_inserts_since_analyzed",
+            "label": "Rows inserted since the analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "inserts_since_analyzed"
+        },
+        {
+            "name": "metric_updates_since_analyzed",
+            "label": "Rows updated since the analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "updates_since_analyzed"
+        },
+        {
+            "name": "metric_deletes_since_analyzed",
+            "label": "Rows deleted since the analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "deletes_since_analyzed"
+        },
+        {
+            "name": "metric_truncated_since_analyzed",
+            "label": "Truncated since the analysis",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "truncated_since_analyzed: YES or NO"
+        },
+        {
+            "name": "metric_created",
+            "label": "Created",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "created: creation date of the table"
+        },
+        {
+            "name": "metric_last_ddl",
+            "label": "Last DDL",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "last_ddl: date of the last DDL on the table"
+        },
+        {
+            "name": "metric_days_since_ddl",
+            "label": "Days since the last DDL",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "days_since_ddl"
+        },
+        {
+            "name": "metric_parallel_degree",
+            "label": "Parallel degree",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "parallel_degree"
+        },
+        {
+            "name": "group_postgresql_only",
+            "label": "PostgreSQL only",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "metric_live_rows",
+            "label": "Live rows",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "live_rows"
+        },
+        {
+            "name": "metric_dead_rows",
+            "label": "Dead rows",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "dead_rows"
+        },
+        {
+            "name": "metric_dead_rows_pct",
+            "label": "% of dead rows",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "dead_rows_pct"
+        },
+        {
+            "name": "metric_last_vacuum",
+            "label": "Last vacuum",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "last_vacuum: date of the latest vacuum"
+        },
+        {
+            "name": "metric_days_since_vacuum",
+            "label": "Days since the last vacuum",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "days_since_vacuum"
+        },
+        {
+            "name": "metric_seq_scans",
+            "label": "Sequential scans",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "seq_scans: since the statistics counters were reset"
+        },
+        {
+            "name": "metric_index_scans",
+            "label": "Index scans",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "description": "index_scans: since the statistics counters were reset"
         },
         {
             "name": "reading",
@@ -38,9 +222,18 @@
             "type": "SELECT",
             "defaultValue": "auto",
             "selectChoices": [
-                {"value": "auto", "label": "Automatic: DBA views, else the login user's"},
-                {"value": "dba", "label": "DBA views only (SELECT_CATALOG_ROLE)"},
-                {"value": "user", "label": "Login user's views only (no grant)"}
+                {
+                    "value": "auto",
+                    "label": "Automatic: DBA views, else the login user's"
+                },
+                {
+                    "value": "dba",
+                    "label": "DBA views only (SELECT_CATALOG_ROLE)"
+                },
+                {
+                    "value": "user",
+                    "label": "Login user's views only (no grant)"
+                }
             ],
             "description": "Without SELECT_CATALOG_ROLE, the statistics of every table the login user may read are still available."
         }
